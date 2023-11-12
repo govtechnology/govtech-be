@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 dotenv.config({ path: "../../.env.test" });
 
 import { router as certificateRouter } from "../routers/certificate.route";
+import { router as userRouter } from "../routers/user.route";
 import { router as authRouter } from "../routers/auth.route";
 
 const server = () => {
@@ -13,6 +14,7 @@ const server = () => {
     app.use(express.urlencoded({ extended: true }))
 
     app.use(`/certificate`, certificateRouter);
+    app.use(`/user`, userRouter);
     app.use(`/auth`, authRouter);
 
     return app

@@ -4,7 +4,40 @@ import server from "../../lib/supertestServer";
 const app = server();
 const token = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQ4NWM1Nzc1LTY2YzAtNDI5MC04NWQwLWU5MjU5NjE1ZmUxOSIsImlhdCI6MTY5OTc3OTI3MiwiZXhwIjoxNjk5NzkwMDcyfQ.fLx56MYoG2R9Zm2IEF7DyFKBGjaoRmzZZ1v-ih9u4E0";
 
-describe("[POST] RequestCertificate", () => {
+describe("[POST] RequestCertificate (/certificate/request)", () => {
+    describe("Requesting Certificate without skType", () => {
+        it("should return 400", async () => {
+            const certificate = {};
+
+            await supertest(app)
+                .post("/certificate/request")
+                .set("Authorization", token)
+                .send(certificate)
+                .expect(400);
+        });
+    });
+
+    describe("Requesting Certificate without Bearer Token", () => {
+        it("should return 401", async () => {
+            const certificate = {
+                "skType": "SKTM",
+                "skData": {
+                    "nama": "Jest Test Account",
+                    "nik": "202110370311147",
+                    "ttl": "Tulungagung, 04 July 2002",
+                    "agama": "Islam",
+                    "bekerja": "Mahasiswa",
+                    "alamat": "Malang"
+                }
+            };
+
+            await supertest(app)
+                .post("/certificate/request")
+                .send(certificate)
+                .expect(401);
+        });
+    });
+
     describe("[SKTM] Requesting SKTM", () => {
         it("should return 201", async () => {
             const certificate = {
@@ -26,6 +59,22 @@ describe("[POST] RequestCertificate", () => {
                 .expect(201);
         });
     });
+    describe("[SKTM] Requesting SKTM where missing payload", () => {
+        it("should return 400", async () => {
+            const certificate = {
+                "skType": "SKTM",
+                "skData": {
+                    "nama": "Jest Test Account",
+                }
+            };
+
+            await supertest(app)
+                .post("/certificate/request")
+                .set("Authorization", token)
+                .send(certificate)
+                .expect(400);
+        });
+    });
     describe("[SKDI] Requesting SKDI", () => {
         it("should return 201", async () => {
             const certificate = {
@@ -41,6 +90,22 @@ describe("[POST] RequestCertificate", () => {
                 .set("Authorization", token)
                 .send(certificate)
                 .expect(201);
+        });
+    });
+    describe("[SKDI] Requesting SKDI where missing payload", () => {
+        it("should return 400", async () => {
+            const certificate = {
+                "skType": "SKDI",
+                "skData": {
+                    "nama": "Jest Test Account",
+                }
+            };
+
+            await supertest(app)
+                .post("/certificate/request")
+                .set("Authorization", token)
+                .send(certificate)
+                .expect(400);
         });
     });
     describe("[SKIK] Requesting SKIK", () => {
@@ -65,6 +130,22 @@ describe("[POST] RequestCertificate", () => {
                 .set("Authorization", token)
                 .send(certificate)
                 .expect(201);
+        });
+    });
+    describe("[SKIK] Requesting SKIK where missing payload", () => {
+        it("should return 400", async () => {
+            const certificate = {
+                "skType": "SKIK",
+                "skData": {
+                    "namaOrtu": "Jest Test Account",
+                }
+            };
+
+            await supertest(app)
+                .post("/certificate/request")
+                .set("Authorization", token)
+                .send(certificate)
+                .expect(400);
         });
     });
     describe("[SKMS] Requesting SKMS", () => {
@@ -93,6 +174,22 @@ describe("[POST] RequestCertificate", () => {
                 .expect(201);
         });
     });
+    describe("[SKMS] Requesting SKMS where missing payload", () => {
+        it("should return 400", async () => {
+            const certificate = {
+                "skType": "SKMS",
+                "skData": {
+                    "nama": "Jest Test Account",
+                }
+            };
+
+            await supertest(app)
+                .post("/certificate/request")
+                .set("Authorization", token)
+                .send(certificate)
+                .expect(400);
+        });
+    });
     describe("[SKD] Requesting SKD", () => {
         it("should return 201", async () => {
             const certificate = {
@@ -114,6 +211,22 @@ describe("[POST] RequestCertificate", () => {
                 .set("Authorization", token)
                 .send(certificate)
                 .expect(201);
+        });
+    });
+    describe("[SKD] Requesting SKD where missing payload", () => {
+        it("should return 400", async () => {
+            const certificate = {
+                "skType": "SKD",
+                "skData": {
+                    "nama": "Jest Test Account",
+                }
+            };
+
+            await supertest(app)
+                .post("/certificate/request")
+                .set("Authorization", token)
+                .send(certificate)
+                .expect(400);
         });
     });
     describe("[SKU] Requesting SKU", () => {
@@ -141,6 +254,22 @@ describe("[POST] RequestCertificate", () => {
                 .expect(201);
         });
     });
+    describe("[SKU] Requesting SKU where missing payload", () => {
+        it("should return 400", async () => {
+            const certificate = {
+                "skType": "SKU",
+                "skData": {
+                    "nama": "Jest Test Account",
+                }
+            };
+
+            await supertest(app)
+                .post("/certificate/request")
+                .set("Authorization", token)
+                .send(certificate)
+                .expect(400);
+        });
+    });
     describe("[SKK] Requesting SKK", () => {
         it("should return 201", async () => {
             const certificate = {
@@ -162,6 +291,22 @@ describe("[POST] RequestCertificate", () => {
                 .set("Authorization", token)
                 .send(certificate)
                 .expect(201);
+        });
+    });
+    describe("[SKK] Requesting SKK where missing payload", () => {
+        it("should return 400", async () => {
+            const certificate = {
+                "skType": "SKK",
+                "skData": {
+                    "nama": "Jest Test Account",
+                }
+            };
+
+            await supertest(app)
+                .post("/certificate/request")
+                .set("Authorization", token)
+                .send(certificate)
+                .expect(400);
         });
     });
     describe("[SKPB] Requesting SKPB", () => {
@@ -190,6 +335,22 @@ describe("[POST] RequestCertificate", () => {
                 .expect(201);
         });
     });
+    describe("[SKPB] Requesting SKPB where missing payload", () => {
+        it("should return 400", async () => {
+            const certificate = {
+                "skType": "SKPB",
+                "skData": {
+                    "nama": "Jest Test Account",
+                }
+            };
+
+            await supertest(app)
+                .post("/certificate/request")
+                .set("Authorization", token)
+                .send(certificate)
+                .expect(400);
+        });
+    });
     describe("[SKHIL] Requesting SKHIL", () => {
         it("should return 201", async () => {
             const certificate = {
@@ -216,6 +377,22 @@ describe("[POST] RequestCertificate", () => {
                 .expect(201);
         });
     });
+    describe("[SKHIL] Requesting SKHIL where missing payload", () => {
+        it("should return 400", async () => {
+            const certificate = {
+                "skType": "SKHIL",
+                "skData": {
+                    "nama": "Jest Test Account",
+                }
+            };
+
+            await supertest(app)
+                .post("/certificate/request")
+                .set("Authorization", token)
+                .send(certificate)
+                .expect(400);
+        });
+    });
     describe("[SKCK] Requesting SKCK", () => {
         it("should return 201", async () => {
             const certificate = {
@@ -239,6 +416,22 @@ describe("[POST] RequestCertificate", () => {
                 .set("Authorization", token)
                 .send(certificate)
                 .expect(201);
+        });
+    });
+    describe("[SKCK] Requesting SKCK where missing payload", () => {
+        it("should return 400", async () => {
+            const certificate = {
+                "skType": "SKCK",
+                "skData": {
+                    "nama": "Jest Test Account",
+                }
+            };
+
+            await supertest(app)
+                .post("/certificate/request")
+                .set("Authorization", token)
+                .send(certificate)
+                .expect(400);
         });
     });
 });
