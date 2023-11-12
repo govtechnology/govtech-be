@@ -14,33 +14,52 @@ export const requestCertificate = async (req, res, next) => {
         const { skType, skData } = req.body;
         const user = verifyToken(req.headers.access_token);
 
-        if (skType === 'SKDI') {
-            if (skData.nik && skData.instance && skData.instanceAddress) {
-                const certificate = await prisma.certificate.create({
-                    data: {
-                        user: {
-                            connect: {
-                                id: user.id,
-                            },
-                        },
-                        skType: 'SKDI',
-                        skStatus: 'VERIFY',
-                        skData: {
-                            nik: skData.nik,
-                            instance: skData.instance,
-                            instanceAddress: skData.instanceAddress,
-                        },
-                    },
-                });
-                res.status(201).json({ success: true, data: certificate });
-            } else {
-                res.status(400).json({
+        switch (skType) {
+            case 'SKDI':
+                if (!skData.nama || !skData.alamat) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing required payload fields: nama, and alamat',
+                    });
+                }
+                break;
+            case 'SKTM':
+                if (!skData.nama || !skData.nik || !skData.ttl || !skData.agama || !skData.bekerja || !skData.alamat) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing required payload fields: nama, nik, ttl, agama, bekerja, and alamat',
+                    });
+                }
+                break;
+            case 'SKIK':
+                if (!skData.namaOrtu || !skData.ttlOrtu || !skData.alamatOrtu || !skData.nikOrtu || !skData.nama || !skData.ttl || !skData.alamat || !skData.nik || !skData.destination) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing required payload fields: namaOrtu, ttlOrtu, alamatOrtu, nikOrtu, nama, ttl, alamat, nik, and destination',
+                    });
+                }
+                break;
+            default:
+                return res.status(400).json({
                     success: false,
-                    error: 'Missing required payload fields: nik, instance, and instanceAddress',
+                    error: `Invalid skType value: ${skType}`,
                 });
-            }
         }
 
+        const certificate = await prisma.certificate.create({
+            data: {
+                user: {
+                    connect: {
+                        id: user.id,
+                    },
+                },
+                skStatus: 'VERIFY',
+                skType,
+                skData,
+            },
+        });
+
+        res.status(201).json({ success: true, data: certificate });
     } catch (error) {
         next(error);
     }
