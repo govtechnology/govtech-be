@@ -1,3 +1,4 @@
+import bcryptjs from "bcryptjs";
 import { prisma } from "../lib/dbConnector";
 import { generateToken, verifyToken } from "../lib/tokenHandler.js";
 import { createHash } from "crypto";
@@ -7,15 +8,31 @@ export * as authController from "../controller/auth.controller";
 export const signUp = async (req, res, next) => {
     try {
         const { name, email, password } = req.body;
-        const users = await prisma.user.create({
-            data: {
-                name,
-                email,
-                role: 'user',
-                password,
-            },
+
+        const existingUsers = await prisma.user.findFirst({
+            where: { email: email },
         });
-        res.status(201).json({ success: true, data: users });
+
+        if (existingUsers) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Email address is already in use.',
+            });
+        } else {
+
+            const saltRounds = 12;
+            const hashPassword = await bcryptjs.hash(password, saltRounds);
+
+            const users = await prisma.user.create({
+                data: {
+                    name,
+                    email,
+                    role: 'user',
+                    password: hashPassword,
+                },
+            });
+            res.status(201).json({ success: true, data: users });
+        }
     } catch (error) {
         next(error);
     }
@@ -35,8 +52,8 @@ export const signIn = async (req, res, next) => {
                 message: "User not found",
             });
         }
-
-        if (password !== user.password) {
+        const passwordMatch = await bcryptjs.compare(password, user.password);
+        if (!passwordMatch) {
             return res.status(422).json({
                 status: 422,
                 message: "Incorrect password!",
