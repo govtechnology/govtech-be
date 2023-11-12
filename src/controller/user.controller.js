@@ -5,6 +5,13 @@ export * as userController from "../controller/user.controller";
 
 export const getUser = async (req, res, next) => {
   try {
+    if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer ')) {
+      return res.status(401).json({
+        status: 401,
+        message: 'Unauthorized: Bearer token required',
+      });
+    }
+
     const data = verifyToken(req.headers.access_token);
 
     const user = await prisma.user.findUnique({

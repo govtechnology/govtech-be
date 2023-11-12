@@ -20,6 +20,11 @@ enum SkType {
   SKKM
 }
 
+enum SkStatus {
+  VERIFY
+  DONE
+}
+
 model user {
   id       String       @id @default(uuid())
   name     String
@@ -40,7 +45,8 @@ model refresh_token {
 model certificate {
   user      user          @relation(fields: [userId], references: [id])
   userId    String
-  id        String        @id @default(uuid())
+  id        Int        @id @default(autoincrement())
+  skStatus  SkStatus
   skType    SkType
   skData    Json
 }
