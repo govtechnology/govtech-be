@@ -50,4 +50,7 @@ model certificate {
   skStatus            SkStatus
   skType              SkType
   skData              Json
+  requestDate         DateTime        @default(now())
+  updatedDate         DateTime?
+  approvedDate        DateTime?
 }

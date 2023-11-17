@@ -5,10 +5,13 @@ export * as userController from "../controller/user.controller";
 
 export const getUser = async (req, res, next) => {
   try {
-    if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer ')) {
+    if (
+      !req.headers.authorization ||
+      !req.headers.authorization.startsWith("Bearer ")
+    ) {
       return res.status(401).json({
         status: 401,
-        message: 'Unauthorized: Bearer token required',
+        message: "Unauthorized: Bearer token required",
       });
     }
 
@@ -27,7 +30,11 @@ export const getUser = async (req, res, next) => {
 
     res.json({
       status: 200,
-      user: user,
+      user: {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
     });
   } catch (error) {
     next(error);
