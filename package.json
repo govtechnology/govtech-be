@@ -1,11 +1,9 @@
 {
   "name": "govtech_be",
+  "type": "module",
   "scripts": {
     "start": "nodemon ./src/index.js",
     "test": "jest"
-  },
-  "devDependencies": {
-    "bun-types": "latest"
   },
   "peerDependencies": {},
   "dependencies": {
