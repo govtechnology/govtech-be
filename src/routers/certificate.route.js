@@ -5,4 +5,8 @@ import { tokenValidation } from "../lib/tokenHandler";
 export const router = Router();
 
 router.get("/", tokenValidation(), certificateController.getCertificate);
-router.post("/request", tokenValidation(), certificateController.requestCertificate);
+router.post(
+  "/request",
+  tokenValidation(),
+  certificateController.requestCertificate
+);
