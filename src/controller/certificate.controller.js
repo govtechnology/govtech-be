@@ -1,4 +1,5 @@
 import { prisma } from "../lib/dbConnector";
+import docsGenerate from "../lib/docsGenerator";
 import { verifyToken } from "../lib/tokenHandler";
 export * as certificateController from "../controller/certificate.controller";
 
@@ -298,5 +299,205 @@ export const getCertificate = async (req, res, next) => {
     }
   } catch (error) {
     next(error);
+  }
+};
+
+export const getCertificateById = async (req, res) => {
+  const { id } = req.params;
+
+  if (
+    !req.headers.authorization ||
+    !req.headers.authorization.startsWith("Bearer ")
+  ) {
+    return res.status(401).json({
+      status: 401,
+      message: "Unauthorized: Bearer token required",
+    });
+  }
+
+  const user = verifyToken(req.headers.access_token);
+
+  if (!user) {
+    return res.status(401).json({
+      status: 401,
+      message: "Invalid access token",
+    });
+  }
+
+  try {
+    const certificate = await prisma.certificate.findUnique({
+      where: {
+        id: parseInt(id),
+      },
+    });
+
+    if (!certificate) {
+      return res.status(404).json({
+        status: 404,
+        message: "Certificate not found",
+      });
+    }
+
+    res.json({
+      status: 200,
+      certificate: certificate,
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 500,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+export const generateCertificate = async (req, res) => {
+  try {
+    const { skId, skType, skData } = req.body;
+
+    if (skType === "SKTM") {
+      await docsGenerate({
+        skId: skId,
+        skType: skType,
+        nama: skData.nama,
+        nik: skData.nik,
+        ttl: skData.ttl,
+        agama: skData.agama,
+        bekerja: skData.bekerja,
+        alamat: skData.alamat,
+      });
+    } else if (skType === "SKIK") {
+      await docsGenerate({
+        skId: skId,
+        skType: skType,
+        namaOrtu: skData.namaOrtu,
+        ttlOrtu: skData.ttlOrtu,
+        alamatOrtu: skData.alamatOrtu,
+        nikOrtu: skData.nikOrtu,
+        nama: skData.nama,
+        ttl: skData.ttl,
+        alamat: skData.alamat,
+        nik: skData.nik,
+        destination: skData.destination,
+      });
+    } else if (skType === "SKMS") {
+      await docsGenerate({
+        skId: skId,
+        skType: skType,
+        nama: skData.nama,
+        ttl: skData.ttl,
+        nik: skData.nik,
+        alamat: skData.alamat,
+        usaha: skData.usaha,
+        jenisAlat: skData.jenisAlat,
+        jumlahAlat: skData.jumlahAlat,
+        fungsiAlat: skData.fungsiAlat,
+        jenisBBM: skData.jenisBBM,
+        lokasiSPBU: skData.lokasiSPBU,
+      });
+    } else if (skType === "SKDI") {
+      await docsGenerate({
+        skId: skId,
+        skType: skType,
+        nama: skData.nama,
+        alamat: skData.alamat,
+      });
+    } else if (skType === "SKD") {
+      await docsGenerate({
+        skId: skId,
+        skType: skType,
+        nama: skData.nama,
+        nik: skData.nik,
+        ttl: skData.ttl,
+        agama: skData.agama,
+        kelamin: skData.kelamin,
+        status: skData.status,
+        pekerjaan: skData.pekerjaan,
+        alamat: skData.alamat,
+      });
+    } else if (skType === "SKU") {
+      await docsGenerate({
+        skId: skId,
+        skType: skType,
+        nama: skData.nama,
+        nik: skData.nik,
+        ttl: skData.ttl,
+        kelamin: skData.kelamin,
+        alamat: skData.alamat,
+        agama: skData.agama,
+        status: skData.status,
+        pendidikan: skData.pendidikan,
+        pekerjaan: skData.pekerjaan,
+        usaha: skData.usaha,
+      });
+    } else if (skType === "SKK") {
+      await docsGenerate({
+        skId: skId,
+        skType: skType,
+        nama: skData.nama,
+        jenisKelamin: skData.jenisKelamin,
+        alamat: skData.alamat,
+        umur: skData.umur,
+        hariMeninggal: skData.hariMeninggal,
+        tanggalMeninggal: skData.tanggalMeninggal,
+        lokasiMeninggal: skData.lokasiMeninggal,
+        sebab: skData.sebab,
+      });
+    } else if (skType === "SKPB") {
+      await docsGenerate({
+        skId: skId,
+        skType: skType,
+        nama: skData.nama,
+        nik: skData.nik,
+        ttl: skData.ttl,
+        kelamin: skData.kelamin,
+        alamat: skData.alamat,
+        agama: skData.agama,
+        status: skData.status,
+        pendidikan: skData.pendidikan,
+        pekerjaan: skData.pekerjaan,
+        usaha: skData.usaha,
+        bank: skData.bank,
+      });
+    } else if (skType === "SKHIL") {
+      await docsGenerate({
+        skId: skId,
+        skType: skType,
+        nama: skData.nama,
+        nik: skData.nik,
+        ttl: skData.ttl,
+        kelamin: skData.kelamin,
+        alamat: skData.alamat,
+        agama: skData.agama,
+        status: skData.status,
+        pendidikan: skData.pendidikan,
+        pekerjaan: skData.pekerjaan,
+        hilang: skData.hilang,
+        keterangan: skData.keterangan,
+      });
+    } else if (skType === "SKCK") {
+      await docsGenerate({
+        skId: skId,
+        skType: skType,
+        nama: skData.nama,
+        nik: skData.nik,
+        ttl: skData.ttl,
+        agama: skData.agama,
+        kelamin: skData.kelamin,
+        alamat: skData.alamat,
+        status: skData.status,
+        pendidikan: skData.pendidikan,
+        pekerjaan: skData.pekerjaan,
+        keperluan: skData.keperluan,
+      });
+    }
+
+    res.json({
+      status: 200,
+      data: { skType, skData },
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Internal Server Error");
   }
 };

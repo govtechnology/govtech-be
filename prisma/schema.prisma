@@ -23,6 +23,7 @@ enum SkType {
 
 enum SkStatus {
   VERIFY
+  REVISION
   DONE
 }
 
@@ -67,6 +68,7 @@ model certificate {
   skStatus            SkStatus
   skType              SkType
   skData              Json
+  skDir               String?
   requestDate         DateTime        @default(now())
   updatedDate         DateTime?
   approvedDate        DateTime?
