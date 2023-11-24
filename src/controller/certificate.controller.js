@@ -252,8 +252,17 @@ export const getCertificate = async (req, res, next) => {
       where: { id: user.id },
     });
 
-    if (getUserInfo.role === "admin") {
+    if (getUserInfo.role === "ADMIN") {
       userCertificate = await prisma.certificate.findMany();
+      const totalDone = userCertificate.filter(
+        (cert) => cert.skStatus === "DONE"
+      );
+      const totalVerify = userCertificate.filter(
+        (cert) => cert.skStatus === "VERIFY"
+      );
+      const totalRevision = userCertificate.filter(
+        (cert) => cert.skStatus === "REVISION"
+      );
 
       if (!userCertificate) {
         return res.status(404).json({
@@ -264,6 +273,10 @@ export const getCertificate = async (req, res, next) => {
         res.json({
           status: 200,
           certificate: userCertificate,
+          total: userCertificate.length,
+          totalDone: totalDone.length,
+          totalVerify: totalVerify.length,
+          totalRevision: totalRevision.length,
         });
       }
     } else {

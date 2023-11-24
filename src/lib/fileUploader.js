@@ -1,6 +1,13 @@
-import { minioClient } from "./s3Connector";
+const multer = require("multer");
+const path = require("path");
 
-var file = "dbConnector.js";
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "temps/");
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.originalname);
+  },
+});
 
-await minioClient.fPutObject("jody-bucket", "test file", file);
-console.log("File uploaded successfully.");
+export const multerHelper = multer({ storage: storage });
