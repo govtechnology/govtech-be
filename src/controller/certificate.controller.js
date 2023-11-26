@@ -1,5 +1,6 @@
 import { prisma } from "../lib/dbConnector";
 import docsGenerate from "../lib/docsGenerator";
+import { generateMinioStorageLink } from "../lib/s3Connector";
 import { verifyToken } from "../lib/tokenHandler";
 export * as certificateController from "../controller/certificate.controller";
 
@@ -351,12 +352,35 @@ export const getCertificateById = async (req, res) => {
   }
 };
 
+export const getCertificateLink = async (req, res) => {
+  try {
+    const getLink = await generateMinioStorageLink(req.body.remotePath);
+    res.json({
+      status: 200,
+      url: getLink,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Internal Server Error");
+  }
+};
+
 export const generateCertificate = async (req, res) => {
   try {
     const { skId, skType, skData } = req.body;
 
+    const user = await prisma.certificate.findUnique({
+      where: {
+        id: skId,
+      },
+      select: {
+        userId: true,
+      },
+    });
+
     if (skType === "SKTM") {
       await docsGenerate({
+        userId: user.userId,
         skId: skId,
         skType: skType,
         nama: skData.nama,
@@ -368,6 +392,7 @@ export const generateCertificate = async (req, res) => {
       });
     } else if (skType === "SKIK") {
       await docsGenerate({
+        userId: user.userId,
         skId: skId,
         skType: skType,
         namaOrtu: skData.namaOrtu,
@@ -382,6 +407,7 @@ export const generateCertificate = async (req, res) => {
       });
     } else if (skType === "SKMS") {
       await docsGenerate({
+        userId: user.userId,
         skId: skId,
         skType: skType,
         nama: skData.nama,
@@ -397,6 +423,7 @@ export const generateCertificate = async (req, res) => {
       });
     } else if (skType === "SKDI") {
       await docsGenerate({
+        userId: user.userId,
         skId: skId,
         skType: skType,
         nama: skData.nama,
@@ -404,6 +431,7 @@ export const generateCertificate = async (req, res) => {
       });
     } else if (skType === "SKD") {
       await docsGenerate({
+        userId: user.userId,
         skId: skId,
         skType: skType,
         nama: skData.nama,
@@ -417,6 +445,7 @@ export const generateCertificate = async (req, res) => {
       });
     } else if (skType === "SKU") {
       await docsGenerate({
+        userId: user.userId,
         skId: skId,
         skType: skType,
         nama: skData.nama,
@@ -432,6 +461,7 @@ export const generateCertificate = async (req, res) => {
       });
     } else if (skType === "SKK") {
       await docsGenerate({
+        userId: user.userId,
         skId: skId,
         skType: skType,
         nama: skData.nama,
@@ -445,6 +475,7 @@ export const generateCertificate = async (req, res) => {
       });
     } else if (skType === "SKPB") {
       await docsGenerate({
+        userId: user.userId,
         skId: skId,
         skType: skType,
         nama: skData.nama,
@@ -461,6 +492,7 @@ export const generateCertificate = async (req, res) => {
       });
     } else if (skType === "SKHIL") {
       await docsGenerate({
+        userId: user.userId,
         skId: skId,
         skType: skType,
         nama: skData.nama,
@@ -477,6 +509,7 @@ export const generateCertificate = async (req, res) => {
       });
     } else if (skType === "SKCK") {
       await docsGenerate({
+        userId: user.userId,
         skId: skId,
         skType: skType,
         nama: skData.nama,

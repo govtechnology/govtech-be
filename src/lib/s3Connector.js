@@ -19,7 +19,8 @@ export const uploadMinioStorage = async (bucketName, remotePath, tempPath) => {
     const upload = await minioClient.fPutObject(
       bucketName,
       remotePath,
-      tempPath
+      tempPath,
+      metaData
     );
 
     await unlinkAsync(tempPath);
@@ -27,4 +28,14 @@ export const uploadMinioStorage = async (bucketName, remotePath, tempPath) => {
   } catch (error) {
     throw new Error(error);
   }
+};
+
+export const generateMinioStorageLink = async (remotePath) => {
+  const getLink = await minioClient.presignedGetObject(
+    "govtech-bucket",
+    remotePath,
+    1000
+  );
+
+  return getLink;
 };

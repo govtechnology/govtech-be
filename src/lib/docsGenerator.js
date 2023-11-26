@@ -1,17 +1,21 @@
 import fs from "fs";
-import bcryptjs from "bcryptjs";
+// import bcryptjs from "bcryptjs";
 import piZip from "pizzip";
 import path from "path";
 import docxTemplater from "docxtemplater";
 import { prisma } from "./dbConnector";
+import { uploadMinioStorage } from "./s3Connector";
+import { format } from "date-fns";
 
 export default async function docsGenerate(data) {
   const template = await fs.readFileSync(`./templates/${data.skType}.docx`);
   const zip = new piZip(template);
   const doc = new docxTemplater().loadZip(zip);
-  const tglSurat = "25 Nov 2023";
-  const filename = `${data.nama}_${data.skType}_${tglSurat}`;
-  const encrpytDir = await bcryptjs.hash(filename, 12);
+  const dateNow = new Date();
+  const tglSurat = format(dateNow, "dd-MM-yyyy");
+  const tglFile = format(dateNow, "hhmmss");
+  const filename = `${data.nama}_${data.skType}_${tglFile}`;
+  // const encrpytDir = await bcryptjs.hash(filename, 12);
 
   if (data.skType === "SKTM") {
     const docData = {
@@ -220,21 +224,24 @@ export default async function docsGenerate(data) {
       console.error("Error rendering template:", error);
     }
   }
-  const filePath = `./public/${encrpytDir}/${filename}.docx`;
+  const tempPath = `./private/${data.userId}/${filename}.docx`;
+  const remotePath = `documents/${data.userId}/${filename}.docx`;
   const generatedDocument = doc.getZip().generate({ type: "nodebuffer" });
 
-  const directoryPath = path.dirname(filePath);
+  const directoryPath = path.dirname(tempPath);
   if (!fs.existsSync(directoryPath)) {
     fs.mkdirSync(directoryPath, { recursive: true });
   }
 
-  fs.writeFileSync(filePath, await generatedDocument);
+  fs.writeFileSync(tempPath, await generatedDocument);
+  await uploadMinioStorage("govtech-bucket", remotePath, tempPath);
 
   await prisma.certificate.update({
     where: { id: data.skId },
     data: {
+      approvedDate: dateNow,
       skStatus: "DONE",
-      skDir: filePath,
+      skDir: remotePath,
     },
   });
 }
