@@ -38,6 +38,14 @@ model user {
   role                UserRole
   password            String
   profile             profile?
+  
+  otp_enabled         Boolean         @default(false)
+  otp_verified        Boolean         @default(false)
+
+  otp_ascii           String?
+  otp_hex             String?
+  otp_base32          String?
+  otp_auth_url        String?
   refresh_tokens      refresh_token[]
   certificate         certificate[]
 }

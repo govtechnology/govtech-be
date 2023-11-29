@@ -35,6 +35,10 @@ export const getUser = async (req, res, next) => {
         email: user.email,
         role: user.role,
       },
+      ibmfa: {
+        enabled: user.otp_enabled,
+        verified: user.otp_verified,
+      },
     });
   } catch (error) {
     next(error);
