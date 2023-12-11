@@ -1,9 +1,8 @@
 import fs from "fs";
-// import bcryptjs from "bcryptjs";
 import piZip from "pizzip";
 import path from "path";
 import docxTemplater from "docxtemplater";
-import { prisma } from "./dbConnector";
+import { sqldb } from "./dbConnector";
 import { uploadMinioStorage } from "./s3Connector";
 import { format } from "date-fns";
 
@@ -15,7 +14,6 @@ export default async function docsGenerate(data) {
   const tglSurat = format(dateNow, "dd-MM-yyyy");
   const tglFile = format(dateNow, "hhmmss");
   const filename = `${data.nama}_${data.skType}_${tglFile}`;
-  // const encrpytDir = await bcryptjs.hash(filename, 12);
 
   if (data.skType === "SKTM") {
     const docData = {
@@ -236,12 +234,10 @@ export default async function docsGenerate(data) {
   fs.writeFileSync(tempPath, await generatedDocument);
   await uploadMinioStorage("govtech-bucket", remotePath, tempPath);
 
-  await prisma.certificate.update({
-    where: { id: data.skId },
-    data: {
-      approvedDate: dateNow,
-      skStatus: "DONE",
-      skDir: remotePath,
-    },
-  });
+  const connection = await sqldb.getConnection();
+  const [result] = await connection.query(
+    "UPDATE certificate SET approvedDate = ?, skStatus = ?, skDir = ? WHERE id = ?",
+    [dateNow, "DONE", remotePath, skId]
+  );
+  connection.release();
 }

@@ -1,4 +1,4 @@
-import { prisma, sqldb } from "../lib/dbConnector";
+import { sqldb } from "../lib/dbConnector";
 import { verifyToken } from "../lib/tokenHandler";
 
 export * as profileController from "../controller/profile.controller";

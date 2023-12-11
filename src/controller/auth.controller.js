@@ -3,7 +3,7 @@ import { generateToken, verifyToken } from "../lib/tokenHandler.js";
 import { createHash } from "crypto";
 import * as OTPAuth from "otpauth";
 import { generateRandomBase32 } from "../lib/base32.js";
-import { prisma, sqldb } from "../lib/dbConnector.js";
+import { sqldb } from "../lib/dbConnector.js";
 import { randomUUID as uuid } from "crypto";
 
 export * as authController from "../controller/auth.controller";

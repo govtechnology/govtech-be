@@ -1,4 +1,4 @@
-import { prisma, sqldb } from "../lib/dbConnector";
+import { sqldb } from "../lib/dbConnector";
 import docsGenerate from "../lib/docsGenerator";
 import { generateMinioStorageLink } from "../lib/s3Connector";
 import { verifyToken } from "../lib/tokenHandler";
