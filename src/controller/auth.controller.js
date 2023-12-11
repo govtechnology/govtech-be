@@ -4,6 +4,7 @@ import { createHash } from "crypto";
 import * as OTPAuth from "otpauth";
 import { generateRandomBase32 } from "../lib/base32.js";
 import { prisma, sqldb } from "../lib/dbConnector.js";
+import { randomUUID as uuid } from "crypto";
 
 export * as authController from "../controller/auth.controller";
 
@@ -21,30 +22,38 @@ export const signUp = async (req, res, next) => {
         message: "Email sudah terpakai.",
       });
     } else {
+      const userId = uuid();
       const saltRounds = 12;
       const hashPassword = await bcryptjs.hash(password, saltRounds);
-      await sqldb.beginTransaction();
 
-      const [userResult] = await sqldb.execute(
-        "INSERT INTO users (email, role, password) VALUES (?, ?, ?)",
-        [email, "USER", hashPassword]
-      );
-      const userId = userResult.insertId;
+      const connection = await sqldb.getConnection();
+      await connection.beginTransaction();
 
-      await sqldb.execute("INSERT INTO profile (user_id, name) VALUES (?, ?)", [
-        userId,
-        name,
-      ]);
+      try {
+        await connection.query(
+          "INSERT INTO user (id, email, role, password) VALUES (?, ?, ?, ?)",
+          [userId, email, "USER", hashPassword]
+        );
 
-      await sqldb.commit();
+        await connection.query(
+          "INSERT INTO profile (userId, id, name) VALUES (?, ?, ?)",
+          [userId, uuid(), name]
+        );
+
+        await connection.commit();
+        connection.release();
+
+        res.status(201).json({ success: true });
+      } catch (error) {
+        await connection.rollback();
+        connection.release();
+        res.status(500).json({ error: "Internal Server Error" });
+      }
 
       res.status(201).json({ success: true });
     }
   } catch (error) {
-    await sqldb.rollback();
     next(error);
-  } finally {
-    sqldb.end();
   }
 };
 
@@ -52,7 +61,7 @@ export const signIn = async (req, res, next) => {
   const { email, password } = req.body;
 
   try {
-    const [rows] = await sqldb.execute("SELECT * FROM users WHERE email = ?", [
+    const [rows] = await sqldb.execute("SELECT * FROM user WHERE email = ?", [
       email,
     ]);
     const user = rows[0];
@@ -76,8 +85,8 @@ export const signIn = async (req, res, next) => {
       const md5Refresh = createHash("md5").update(refresh_token).digest("hex");
 
       await sqldb.execute(
-        "INSERT INTO refresh_token (userId, token) VALUES (?, ?)",
-        [user.id, md5Refresh]
+        "INSERT INTO refresh_token (userId, id, token) VALUES (?, ?, ?)",
+        [user.id, uuid(), md5Refresh]
       );
 
       res.json({
@@ -94,8 +103,6 @@ export const signIn = async (req, res, next) => {
     }
   } catch (error) {
     next(error);
-  } finally {
-    sqldb.end();
   }
 };
 
@@ -112,44 +119,65 @@ export const GenerateOTP = async (req, res) => {
     }
 
     const data = verifyToken(req.headers.access_token);
-    const user = await prisma.user.findUnique({ where: { id: data.id } });
+    const connection = await sqldb.getConnection();
+    await connection.beginTransaction();
 
-    if (!user) {
-      return res.status(404).json({
-        status: "fail",
-        message: "No user with that email exists",
-      });
-    }
+    try {
+      const [userRows] = await connection.query(
+        "SELECT * FROM user WHERE id = ?",
+        [data.id]
+      );
+      const user = userRows[0];
 
-    if (!user.otp_enabled && !user.otp_verified) {
-      const base32_secret = generateRandomBase32();
+      if (!user) {
+        await connection.rollback();
+        connection.release();
+        return res.status(404).json({
+          status: "fail",
+          message: "No user with that ID exists",
+        });
+      }
 
-      let totp = new OTPAuth.TOTP({
-        issuer: "ngubalan.xyzuan.my.id",
-        label: "NgubalanDaring.",
-        algorithm: "SHA1",
-        digits: 6,
-        secret: base32_secret,
-      });
+      if (!user.otp_enabled && !user.otp_verified) {
+        const base32_secret = generateRandomBase32();
 
-      let otpauth_url = totp.toString();
+        let totp = new OTPAuth.TOTP({
+          issuer: "ngubalan.xyzuan.my.id",
+          label: "NgubalanDaring.",
+          algorithm: "SHA1",
+          digits: 6,
+          secret: base32_secret,
+        });
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          otp_auth_url: otpauth_url,
-          otp_base32: base32_secret,
-        },
-      });
+        let otpauth_url = totp.toString();
 
-      res.status(200).json({
-        base32: base32_secret,
-        otpauth_url,
-      });
-    } else {
-      return res.status(404).json({
-        status: "fail",
-        message: "User already have generated QR",
+        await connection.query(
+          "UPDATE user SET otp_auth_url = ?, otp_base32 = ? WHERE id = ?",
+          [otpauth_url, base32_secret, user.id]
+        );
+
+        await connection.commit();
+        connection.release();
+
+        res.status(200).json({
+          base32: base32_secret,
+          otpauth_url,
+        });
+      } else {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({
+          status: "fail",
+          message: "User already has a generated QR",
+        });
+      }
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      console.error("Error executing queries:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message,
       });
     }
   } catch (error) {
@@ -175,48 +203,69 @@ export const VerifyOTP = async (req, res) => {
     const data = verifyToken(req.headers.access_token);
     const { token } = req.body;
 
-    const message = "Token is invalid or user doesn't exist";
-    const user = await prisma.user.findUnique({ where: { id: data.id } });
-    if (!user) {
-      return res.status(401).json({
-        status: "fail",
-        message,
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      const [userRows] = await connection.query(
+        "SELECT * FROM user WHERE id = ?",
+        [data.id]
+      );
+      const user = userRows[0];
+
+      if (!user) {
+        await connection.rollback();
+        connection.release();
+        return res.status(401).json({
+          status: "fail",
+          message: "Token is invalid or user doesn't exist",
+        });
+      }
+
+      let totp = new OTPAuth.TOTP({
+        issuer: "ngubalan.xyzuan.my.id",
+        label: "NgubalanDaring.",
+        algorithm: "SHA1",
+        digits: 6,
+        secret: user.otp_base32,
       });
-    }
 
-    let totp = new OTPAuth.TOTP({
-      issuer: "ngubalan.xyzuan.my.id",
-      label: "NgubalanDaring.",
-      algorithm: "SHA1",
-      digits: 6,
-      secret: user.otp_base32,
-    });
+      let delta = totp.validate({ token });
 
-    let delta = totp.validate({ token });
+      if (delta === null) {
+        await connection.rollback();
+        connection.release();
+        return res.status(401).json({
+          status: "fail",
+          message: "Token is invalid or user doesn't exist",
+        });
+      }
 
-    if (delta === null) {
-      return res.status(401).json({
-        status: "fail",
-        message,
-      });
-    }
+      await connection.query(
+        "UPDATE user SET otp_enabled = ?, otp_verified = ? WHERE id = ?",
+        [true, true, user.id]
+      );
 
-    const updatedUser = await prisma.user.update({
-      where: { id: data.id },
-      data: {
-        otp_enabled: true,
+      await connection.commit();
+      connection.release();
+
+      res.status(200).json({
         otp_verified: true,
-      },
-    });
-
-    res.status(200).json({
-      otp_verified: true,
-      user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        otp_enabled: updatedUser.otp_enabled,
-      },
-    });
+        user: {
+          id: user.id,
+          email: user.email,
+          otp_enabled: true,
+        },
+      });
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      console.error("Error executing queries:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message,
+      });
+    }
   } catch (error) {
     res.status(500).json({
       status: "error",
@@ -228,35 +277,61 @@ export const VerifyOTP = async (req, res) => {
 export const ValidateOTP = async (req, res) => {
   try {
     const { userId, token } = req.body;
-    const user = await prisma.user.findUnique({ where: { id: userId } });
 
-    const message = "Token is invalid or user doesn't exist";
-    if (!user) {
-      return res.status(401).json({
-        status: "fail",
-        message,
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      const [userRows] = await connection.query(
+        "SELECT * FROM user WHERE id = ?",
+        [userId]
+      );
+      const user = userRows[0];
+
+      const message = "Token is invalid or user doesn't exist";
+      if (!user) {
+        await connection.rollback();
+        connection.release();
+        return res.status(401).json({
+          status: "fail",
+          message,
+        });
+      }
+
+      let totp = new OTPAuth.TOTP({
+        issuer: "ngubalan.xyzuan.my.id",
+        label: "NgubalanDaring.",
+        algorithm: "SHA1",
+        digits: 6,
+        secret: user.otp_base32,
+      });
+
+      let delta = totp.validate({ token, window: 1 });
+
+      if (delta === null) {
+        await connection.rollback();
+        connection.release();
+        return res.status(401).json({
+          status: "fail",
+          message,
+        });
+      }
+
+      await connection.commit();
+      connection.release();
+
+      res.status(200).json({
+        otp_valid: true,
+      });
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      console.error("Error executing queries:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message,
       });
     }
-    let totp = new OTPAuth.TOTP({
-      issuer: "ngubalan.xyzuan.my.id",
-      label: "NgubalanDaring.",
-      algorithm: "SHA1",
-      digits: 6,
-      secret: user.otp_base32,
-    });
-
-    let delta = totp.validate({ token, window: 1 });
-
-    if (delta === null) {
-      return res.status(401).json({
-        status: "fail",
-        message,
-      });
-    }
-
-    res.status(200).json({
-      otp_valid: true,
-    });
   } catch (error) {
     res.status(500).json({
       status: "error",
@@ -278,31 +353,52 @@ export const DisableOTP = async (req, res) => {
     }
 
     const data = verifyToken(req.headers.access_token);
-    const user = await prisma.user.findUnique({ where: { id: data.id } });
-    if (!user) {
-      return res.status(401).json({
-        status: "fail",
-        message: "User doesn't exist",
+
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      const [userRows] = await connection.query(
+        "SELECT * FROM user WHERE id = ?",
+        [data.id]
+      );
+      const user = userRows[0];
+
+      if (!user) {
+        await connection.rollback();
+        connection.release();
+        return res.status(401).json({
+          status: "fail",
+          message: "User doesn't exist",
+        });
+      }
+
+      await connection.query(
+        "UPDATE user SET otp_enabled = ?, otp_verified = ? WHERE id = ?",
+        [false, false, user.id]
+      );
+
+      await connection.commit();
+      connection.release();
+
+      res.status(200).json({
+        status: "success",
+        otp_disabled: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          otp_enabled: false,
+        },
+      });
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      console.error("Error executing queries:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message,
       });
     }
-
-    const updatedUser = await prisma.user.update({
-      where: { id: data.id },
-      data: {
-        otp_enabled: false,
-        otp_verified: false,
-      },
-    });
-
-    res.status(200).json({
-      status: "success",
-      otp_disabled: true,
-      user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        otp_enabled: updatedUser.otp_enabled,
-      },
-    });
   } catch (error) {
     res.status(500).json({
       status: "error",
