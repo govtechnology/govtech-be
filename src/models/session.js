@@ -29,6 +29,13 @@ class Session {
 
         return this;
     }
+    
+    static async revoke(userId) {
+        await sqldb.execute(
+            "UPDATE sessions SET revokedAt = NOW() WHERE userId = ? AND revokedAt IS NUll",
+            [userId]
+        )
+    }
 
     async persist() {
         await this.connection.execute(

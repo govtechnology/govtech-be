@@ -6,6 +6,7 @@ import { generateRandomBase32 } from "../lib/base32.js";
 import { sqldb } from "../lib/dbConnector.js";
 import { randomUUID as uuid } from "crypto";
 import Session from "../models/session.js";
+import { da } from "date-fns/locale";
 
 export * as authController from "../controller/auth.controller";
 
@@ -108,6 +109,30 @@ export const signIn = async (req, res, next) => {
         },
       });
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const signOut = async (req, res, next) => {
+  try {
+    if (
+      !req.headers.authorization ||
+      !req.headers.authorization.startsWith("Bearer ")
+    ) {
+      return res.status(401).json({
+        status: 401,
+        message: "Unauthorized: Bearer token required",
+      });
+    }
+
+    const data = verifyToken(req.headers.authorization.substring("Bearer ".length));
+    Session.revoke(data.id);
+
+    res.json({
+      status: 200,
+      message: "User has been logged out"
+    });
   } catch (error) {
     next(error);
   }
