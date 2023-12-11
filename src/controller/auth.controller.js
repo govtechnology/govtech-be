@@ -1,19 +1,19 @@
 import bcryptjs from "bcryptjs";
-import { prisma } from "../lib/dbConnector";
 import { generateToken, verifyToken } from "../lib/tokenHandler.js";
 import { createHash } from "crypto";
 import * as OTPAuth from "otpauth";
 import { generateRandomBase32 } from "../lib/base32.js";
+import { prisma, sqldb } from "../lib/dbConnector.js";
 
 export * as authController from "../controller/auth.controller";
 
 export const signUp = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
-
-    const existingUsers = await prisma.user.findFirst({
-      where: { email: email },
-    });
+    const [rows] = await sqldb.execute("SELECT * FROM user WHERE email = ?", [
+      email,
+    ]);
+    const existingUsers = rows[0];
 
     if (existingUsers) {
       return res.status(400).json({
@@ -23,39 +23,39 @@ export const signUp = async (req, res, next) => {
     } else {
       const saltRounds = 12;
       const hashPassword = await bcryptjs.hash(password, saltRounds);
+      await sqldb.beginTransaction();
 
-      const user = await prisma.user.create({
-        data: {
-          email: email,
-          role: "USER",
-          password: hashPassword,
-        },
-      });
+      const [userResult] = await sqldb.execute(
+        "INSERT INTO users (email, role, password) VALUES (?, ?, ?)",
+        [email, "USER", hashPassword]
+      );
+      const userId = userResult.insertId;
 
-      await prisma.profile.create({
-        data: {
-          user: {
-            connect: {
-              id: user.id,
-            },
-          },
-          name: name,
-        },
-      });
+      await sqldb.execute("INSERT INTO profile (user_id, name) VALUES (?, ?)", [
+        userId,
+        name,
+      ]);
+
+      await sqldb.commit();
+
       res.status(201).json({ success: true });
     }
   } catch (error) {
+    await sqldb.rollback();
     next(error);
+  } finally {
+    sqldb.end();
   }
 };
 
 export const signIn = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
 
-    const user = await prisma.user.findFirst({
-      where: { email: email },
-    });
+  try {
+    const [rows] = await sqldb.execute("SELECT * FROM users WHERE email = ?", [
+      email,
+    ]);
+    const user = rows[0];
 
     if (!user) {
       return res.status(404).json({
@@ -63,6 +63,7 @@ export const signIn = async (req, res, next) => {
         message: "Pengguna tidak ditemukan",
       });
     }
+
     const passwordMatch = await bcryptjs.compare(password, user.password);
     if (!passwordMatch) {
       return res.status(422).json({
@@ -74,12 +75,10 @@ export const signIn = async (req, res, next) => {
       const refresh_token = generateToken({ id: user.id }, false);
       const md5Refresh = createHash("md5").update(refresh_token).digest("hex");
 
-      await prisma.refresh_token.create({
-        data: {
-          userId: user.id,
-          token: md5Refresh,
-        },
-      });
+      await sqldb.execute(
+        "INSERT INTO refresh_token (userId, token) VALUES (?, ?)",
+        [user.id, md5Refresh]
+      );
 
       res.json({
         status: 200,
@@ -95,6 +94,8 @@ export const signIn = async (req, res, next) => {
     }
   } catch (error) {
     next(error);
+  } finally {
+    sqldb.end();
   }
 };
 
