@@ -55,12 +55,16 @@ export const updateUserProfile = async (req, res, next) => {
     }
 
     const { name, nik, alamat, tempatLahir, tanggalLahir } = req.body;
+    const parsedDate = new Date(tanggalLahir)
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
     const data = verifyToken(req.headers.access_token);
 
     const connection = await sqldb.getConnection();
     const [result] = await connection.query(
       "UPDATE profile SET name = ?, nik = ?, alamat = ?, tempatLahir = ?, tanggalLahir = ? WHERE userId = ?",
-      [name, nik, alamat, tempatLahir, tanggalLahir, data.id]
+      [name, nik, alamat, tempatLahir, parsedDate, data.id]
     );
     connection.release();
 
