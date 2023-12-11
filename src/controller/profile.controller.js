@@ -1,4 +1,4 @@
-import { prisma } from "../lib/dbConnector";
+import { prisma, sqldb } from "../lib/dbConnector";
 import { verifyToken } from "../lib/tokenHandler";
 
 export * as profileController from "../controller/profile.controller";
@@ -17,9 +17,14 @@ export const getUserProfile = async (req, res, next) => {
 
     const data = verifyToken(req.headers.access_token);
 
-    const userProfile = await prisma.profile.findUnique({
-      where: { userId: data.id },
-    });
+    const connection = await sqldb.getConnection();
+    const [profileRows] = await connection.query(
+      "SELECT * FROM profile WHERE userId = ?",
+      [data.id]
+    );
+    connection.release();
+
+    const userProfile = profileRows[0];
 
     if (!userProfile) {
       return res.status(404).json({
@@ -51,28 +56,18 @@ export const updateUserProfile = async (req, res, next) => {
 
     const { name, nik, alamat, tempatLahir, tanggalLahir } = req.body;
     const data = verifyToken(req.headers.access_token);
-    // const file = req.file;
-    // const tempPath = file.path;
-    // const originalFileName = file.originalname;
-    // const uniqueFilename = `${uuidv4()}-${file.filename}`;
-    // const remotePath = `product/${id}/image/${uniqueFilename}`;
 
-    // await uploadMinioStorage("govtech-bucket", remotePath, tempPath);
+    const connection = await sqldb.getConnection();
+    const [result] = await connection.query(
+      "UPDATE profile SET name = ?, nik = ?, alamat = ?, tempatLahir = ?, tanggalLahir = ? WHERE userId = ?",
+      [name, nik, alamat, tempatLahir, tanggalLahir, data.id]
+    );
+    connection.release();
 
-    const userProfile = await prisma.profile.update({
-      where: { userId: data.id },
-      data: {
-        name: name,
-        nik: nik,
-        // ktp: originalFileName,
-        alamat: alamat,
-        tempatLahir: tempatLahir,
-        tanggalLahir: tanggalLahir,
-      },
-    });
     res.json({
       status: 200,
-      profile: userProfile,
+      message: "Profile updated successfully",
+      affectedRows: result.affectedRows,
     });
   } catch (error) {
     next(error);
