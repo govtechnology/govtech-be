@@ -6,7 +6,6 @@ import { generateRandomBase32 } from "../lib/base32.js";
 import { sqldb } from "../lib/dbConnector.js";
 import { randomUUID as uuid } from "crypto";
 import Session from "../models/session.js";
-import { da } from "date-fns/locale";
 
 export * as authController from "../controller/auth.controller";
 
