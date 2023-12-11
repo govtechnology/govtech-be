@@ -1,4 +1,4 @@
-import { prisma } from "../lib/dbConnector";
+import { sqldb } from "../lib/dbConnector";
 import { verifyToken } from "../lib/tokenHandler";
 
 export * as userController from "../controller/user.controller";
@@ -17,9 +17,14 @@ export const getUser = async (req, res, next) => {
 
     const data = verifyToken(req.headers.access_token);
 
-    const user = await prisma.user.findUnique({
-      where: { id: data.id },
-    });
+    const connection = await sqldb.getConnection();
+    const [userRows] = await connection.query(
+      "SELECT email, role, otp_enabled, otp_verified FROM user WHERE id = ?",
+      [data.id]
+    );
+    connection.release();
+
+    const user = userRows[0];
 
     if (!user) {
       return res.status(404).json({
@@ -31,7 +36,6 @@ export const getUser = async (req, res, next) => {
     res.json({
       status: 200,
       user: {
-        name: user.name,
         email: user.email,
         role: user.role,
       },

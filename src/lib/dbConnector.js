@@ -1,9 +1,6 @@
-import { PrismaClient } from "@prisma/client";
+const mysql = require("mysql2/promise");
 
-export const prisma = new PrismaClient({
-    datasources: {
-        db: {
-            url: process.env.JEST_DATABASE_URL ? process.env.JEST_DATABASE_URL : process.env.DATABASE_URL,
-        },
-    },
-})
+export const sqldb = mysql.createPool({
+  uri: process.env.DATABASE_URL,
+  waitForConnections: true,
+});
