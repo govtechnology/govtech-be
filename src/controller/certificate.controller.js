@@ -1,4 +1,4 @@
-import { prisma } from "../lib/dbConnector";
+import { prisma, sqldb } from "../lib/dbConnector";
 import docsGenerate from "../lib/docsGenerator";
 import { generateMinioStorageLink } from "../lib/s3Connector";
 import { verifyToken } from "../lib/tokenHandler";
@@ -209,20 +209,34 @@ export const requestCertificate = async (req, res, next) => {
         });
     }
 
-    const certificate = await prisma.certificate.create({
-      data: {
-        user: {
-          connect: {
-            id: user.id,
-          },
-        },
-        skStatus: "VERIFY",
-        skType,
-        skData,
-      },
-    });
+    const connection = await sqldb.getConnection();
+    await connection.beginTransaction();
 
-    res.status(201).json({ success: true, data: certificate });
+    try {
+      const [result] = await connection.query(
+        "INSERT INTO certificate (userId, skStatus, skType, skData) VALUES (?, ?, ?, ?)",
+        [user.id, "VERIFY", skType, JSON.stringify(skData)]
+      );
+
+      const [certificateRows] = await connection.query(
+        "SELECT * FROM certificate WHERE id = ?",
+        [result.insertId]
+      );
+      const certificate = certificateRows[0];
+
+      await connection.commit();
+      connection.release();
+
+      res.status(201).json({ success: true, data: certificate });
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      console.error("Error executing queries:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message,
+      });
+    }
   } catch (error) {
     next(error);
   }
@@ -250,28 +264,32 @@ export const getCertificate = async (req, res, next) => {
       });
     }
 
-    const getUserInfo = await prisma.user.findUnique({
-      where: { id: user.id },
-    });
+    const connection = await sqldb.getConnection();
+    await connection.beginTransaction();
 
-    if (getUserInfo.role === "ADMIN") {
-      userCertificate = await prisma.certificate.findMany();
-      const totalDone = userCertificate.filter(
-        (cert) => cert.skStatus === "DONE"
+    try {
+      const [userInfoRows] = await connection.query(
+        "SELECT * FROM user WHERE id = ?",
+        [user.id]
       );
-      const totalVerify = userCertificate.filter(
-        (cert) => cert.skStatus === "VERIFY"
-      );
-      const totalRevision = userCertificate.filter(
-        (cert) => cert.skStatus === "REVISION"
-      );
+      const userInfo = userInfoRows[0];
 
-      if (!userCertificate) {
-        return res.status(404).json({
-          status: 404,
-          message: "Certificate not found",
-        });
-      } else {
+      if (userInfo.role === "ADMIN") {
+        const [allCertificateRows] = await connection.query(
+          "SELECT * FROM certificate"
+        );
+        userCertificate = allCertificateRows;
+
+        const totalDone = userCertificate.filter(
+          (cert) => cert.skStatus === "DONE"
+        );
+        const totalVerify = userCertificate.filter(
+          (cert) => cert.skStatus === "VERIFY"
+        );
+        const totalRevision = userCertificate.filter(
+          (cert) => cert.skStatus === "REVISION"
+        );
+
         res.json({
           status: 200,
           certificate: userCertificate,
@@ -280,23 +298,26 @@ export const getCertificate = async (req, res, next) => {
           totalVerify: totalVerify.length,
           totalRevision: totalRevision.length,
         });
-      }
-    } else {
-      userCertificate = await prisma.certificate.findMany({
-        where: { userId: user.id },
-      });
-
-      if (!userCertificate) {
-        return res.status(404).json({
-          status: 404,
-          message: "Certificate not found",
-        });
       } else {
+        const [userCertificateRows] = await connection.query(
+          "SELECT * FROM certificate WHERE userId = ?",
+          [user.id]
+        );
+        userCertificate = userCertificateRows;
+
         res.json({
           status: 200,
           certificate: userCertificate,
         });
       }
+
+      await connection.commit();
+      connection.release();
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      console.error("Error executing queries:", error);
+      next(error);
     }
   } catch (error) {
     next(error);
@@ -326,11 +347,14 @@ export const getCertificateById = async (req, res) => {
   }
 
   try {
-    const certificate = await prisma.certificate.findUnique({
-      where: {
-        id: parseInt(id),
-      },
-    });
+    const connection = await sqldb.getConnection();
+    const [certificateRows] = await connection.query(
+      "SELECT * FROM certificate WHERE id = ?",
+      [parseInt(id)]
+    );
+    const certificate = certificateRows[0];
+
+    connection.release();
 
     if (!certificate) {
       return res.status(404).json({
@@ -369,166 +393,176 @@ export const generateCertificate = async (req, res) => {
   try {
     const { skId, skType, skData } = req.body;
 
-    const user = await prisma.certificate.findUnique({
-      where: {
-        id: skId,
-      },
-      select: {
-        userId: true,
-      },
-    });
+    const connection = await sqldb.getConnection();
+    await connection.beginTransaction();
 
-    if (skType === "SKTM") {
-      await docsGenerate({
-        userId: user.userId,
-        skId: skId,
-        skType: skType,
-        nama: skData.nama,
-        nik: skData.nik,
-        ttl: skData.ttl,
-        agama: skData.agama,
-        bekerja: skData.bekerja,
-        alamat: skData.alamat,
+    try {
+      const [userRows] = await connection.query(
+        "SELECT userId FROM certificate WHERE id = ?",
+        [skId]
+      );
+      const user = userRows[0];
+
+      if (skType === "SKTM") {
+        await docsGenerate({
+          userId: user.userId,
+          skId: skId,
+          skType: skType,
+          nama: skData.nama,
+          nik: skData.nik,
+          ttl: skData.ttl,
+          agama: skData.agama,
+          bekerja: skData.bekerja,
+          alamat: skData.alamat,
+        });
+      } else if (skType === "SKIK") {
+        await docsGenerate({
+          userId: user.userId,
+          skId: skId,
+          skType: skType,
+          namaOrtu: skData.namaOrtu,
+          ttlOrtu: skData.ttlOrtu,
+          alamatOrtu: skData.alamatOrtu,
+          nikOrtu: skData.nikOrtu,
+          nama: skData.nama,
+          ttl: skData.ttl,
+          alamat: skData.alamat,
+          nik: skData.nik,
+          destination: skData.destination,
+        });
+      } else if (skType === "SKMS") {
+        await docsGenerate({
+          userId: user.userId,
+          skId: skId,
+          skType: skType,
+          nama: skData.nama,
+          ttl: skData.ttl,
+          nik: skData.nik,
+          alamat: skData.alamat,
+          usaha: skData.usaha,
+          jenisAlat: skData.jenisAlat,
+          jumlahAlat: skData.jumlahAlat,
+          fungsiAlat: skData.fungsiAlat,
+          jenisBBM: skData.jenisBBM,
+          lokasiSPBU: skData.lokasiSPBU,
+        });
+      } else if (skType === "SKDI") {
+        await docsGenerate({
+          userId: user.userId,
+          skId: skId,
+          skType: skType,
+          nama: skData.nama,
+          alamat: skData.alamat,
+        });
+      } else if (skType === "SKD") {
+        await docsGenerate({
+          userId: user.userId,
+          skId: skId,
+          skType: skType,
+          nama: skData.nama,
+          nik: skData.nik,
+          ttl: skData.ttl,
+          agama: skData.agama,
+          kelamin: skData.kelamin,
+          status: skData.status,
+          pekerjaan: skData.pekerjaan,
+          alamat: skData.alamat,
+        });
+      } else if (skType === "SKU") {
+        await docsGenerate({
+          userId: user.userId,
+          skId: skId,
+          skType: skType,
+          nama: skData.nama,
+          nik: skData.nik,
+          ttl: skData.ttl,
+          kelamin: skData.kelamin,
+          alamat: skData.alamat,
+          agama: skData.agama,
+          status: skData.status,
+          pendidikan: skData.pendidikan,
+          pekerjaan: skData.pekerjaan,
+          usaha: skData.usaha,
+        });
+      } else if (skType === "SKK") {
+        await docsGenerate({
+          userId: user.userId,
+          skId: skId,
+          skType: skType,
+          nama: skData.nama,
+          jenisKelamin: skData.jenisKelamin,
+          alamat: skData.alamat,
+          umur: skData.umur,
+          hariMeninggal: skData.hariMeninggal,
+          tanggalMeninggal: skData.tanggalMeninggal,
+          lokasiMeninggal: skData.lokasiMeninggal,
+          sebab: skData.sebab,
+        });
+      } else if (skType === "SKPB") {
+        await docsGenerate({
+          userId: user.userId,
+          skId: skId,
+          skType: skType,
+          nama: skData.nama,
+          nik: skData.nik,
+          ttl: skData.ttl,
+          kelamin: skData.kelamin,
+          alamat: skData.alamat,
+          agama: skData.agama,
+          status: skData.status,
+          pendidikan: skData.pendidikan,
+          pekerjaan: skData.pekerjaan,
+          usaha: skData.usaha,
+          bank: skData.bank,
+        });
+      } else if (skType === "SKHIL") {
+        await docsGenerate({
+          userId: user.userId,
+          skId: skId,
+          skType: skType,
+          nama: skData.nama,
+          nik: skData.nik,
+          ttl: skData.ttl,
+          kelamin: skData.kelamin,
+          alamat: skData.alamat,
+          agama: skData.agama,
+          status: skData.status,
+          pendidikan: skData.pendidikan,
+          pekerjaan: skData.pekerjaan,
+          hilang: skData.hilang,
+          keterangan: skData.keterangan,
+        });
+      } else if (skType === "SKCK") {
+        await docsGenerate({
+          userId: user.userId,
+          skId: skId,
+          skType: skType,
+          nama: skData.nama,
+          nik: skData.nik,
+          ttl: skData.ttl,
+          agama: skData.agama,
+          kelamin: skData.kelamin,
+          alamat: skData.alamat,
+          status: skData.status,
+          pendidikan: skData.pendidikan,
+          pekerjaan: skData.pekerjaan,
+          keperluan: skData.keperluan,
+        });
+      }
+
+      await connection.commit();
+      connection.release();
+
+      res.json({
+        status: 200,
+        data: { skType, skData },
       });
-    } else if (skType === "SKIK") {
-      await docsGenerate({
-        userId: user.userId,
-        skId: skId,
-        skType: skType,
-        namaOrtu: skData.namaOrtu,
-        ttlOrtu: skData.ttlOrtu,
-        alamatOrtu: skData.alamatOrtu,
-        nikOrtu: skData.nikOrtu,
-        nama: skData.nama,
-        ttl: skData.ttl,
-        alamat: skData.alamat,
-        nik: skData.nik,
-        destination: skData.destination,
-      });
-    } else if (skType === "SKMS") {
-      await docsGenerate({
-        userId: user.userId,
-        skId: skId,
-        skType: skType,
-        nama: skData.nama,
-        ttl: skData.ttl,
-        nik: skData.nik,
-        alamat: skData.alamat,
-        usaha: skData.usaha,
-        jenisAlat: skData.jenisAlat,
-        jumlahAlat: skData.jumlahAlat,
-        fungsiAlat: skData.fungsiAlat,
-        jenisBBM: skData.jenisBBM,
-        lokasiSPBU: skData.lokasiSPBU,
-      });
-    } else if (skType === "SKDI") {
-      await docsGenerate({
-        userId: user.userId,
-        skId: skId,
-        skType: skType,
-        nama: skData.nama,
-        alamat: skData.alamat,
-      });
-    } else if (skType === "SKD") {
-      await docsGenerate({
-        userId: user.userId,
-        skId: skId,
-        skType: skType,
-        nama: skData.nama,
-        nik: skData.nik,
-        ttl: skData.ttl,
-        agama: skData.agama,
-        kelamin: skData.kelamin,
-        status: skData.status,
-        pekerjaan: skData.pekerjaan,
-        alamat: skData.alamat,
-      });
-    } else if (skType === "SKU") {
-      await docsGenerate({
-        userId: user.userId,
-        skId: skId,
-        skType: skType,
-        nama: skData.nama,
-        nik: skData.nik,
-        ttl: skData.ttl,
-        kelamin: skData.kelamin,
-        alamat: skData.alamat,
-        agama: skData.agama,
-        status: skData.status,
-        pendidikan: skData.pendidikan,
-        pekerjaan: skData.pekerjaan,
-        usaha: skData.usaha,
-      });
-    } else if (skType === "SKK") {
-      await docsGenerate({
-        userId: user.userId,
-        skId: skId,
-        skType: skType,
-        nama: skData.nama,
-        jenisKelamin: skData.jenisKelamin,
-        alamat: skData.alamat,
-        umur: skData.umur,
-        hariMeninggal: skData.hariMeninggal,
-        tanggalMeninggal: skData.tanggalMeninggal,
-        lokasiMeninggal: skData.lokasiMeninggal,
-        sebab: skData.sebab,
-      });
-    } else if (skType === "SKPB") {
-      await docsGenerate({
-        userId: user.userId,
-        skId: skId,
-        skType: skType,
-        nama: skData.nama,
-        nik: skData.nik,
-        ttl: skData.ttl,
-        kelamin: skData.kelamin,
-        alamat: skData.alamat,
-        agama: skData.agama,
-        status: skData.status,
-        pendidikan: skData.pendidikan,
-        pekerjaan: skData.pekerjaan,
-        usaha: skData.usaha,
-        bank: skData.bank,
-      });
-    } else if (skType === "SKHIL") {
-      await docsGenerate({
-        userId: user.userId,
-        skId: skId,
-        skType: skType,
-        nama: skData.nama,
-        nik: skData.nik,
-        ttl: skData.ttl,
-        kelamin: skData.kelamin,
-        alamat: skData.alamat,
-        agama: skData.agama,
-        status: skData.status,
-        pendidikan: skData.pendidikan,
-        pekerjaan: skData.pekerjaan,
-        hilang: skData.hilang,
-        keterangan: skData.keterangan,
-      });
-    } else if (skType === "SKCK") {
-      await docsGenerate({
-        userId: user.userId,
-        skId: skId,
-        skType: skType,
-        nama: skData.nama,
-        nik: skData.nik,
-        ttl: skData.ttl,
-        agama: skData.agama,
-        kelamin: skData.kelamin,
-        alamat: skData.alamat,
-        status: skData.status,
-        pendidikan: skData.pendidikan,
-        pekerjaan: skData.pekerjaan,
-        keperluan: skData.keperluan,
-      });
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      console.error("Error generating certificate:", error);
+      res.status(500).send("Internal Server Error");
     }
-
-    res.json({
-      status: 200,
-      data: { skType, skData },
-    });
   } catch (error) {
     console.log(error);
     res.status(500).send("Internal Server Error");

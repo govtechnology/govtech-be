@@ -203,7 +203,7 @@ export const VerifyOTP = async (req, res) => {
     const data = verifyToken(req.headers.access_token);
     const { token } = req.body;
 
-    const connection = await pool.getConnection();
+    const connection = await sqldb.getConnection();
     await connection.beginTransaction();
 
     try {
@@ -278,7 +278,7 @@ export const ValidateOTP = async (req, res) => {
   try {
     const { userId, token } = req.body;
 
-    const connection = await pool.getConnection();
+    const connection = await sqldb.getConnection();
     await connection.beginTransaction();
 
     try {
@@ -354,7 +354,7 @@ export const DisableOTP = async (req, res) => {
 
     const data = verifyToken(req.headers.access_token);
 
-    const connection = await pool.getConnection();
+    const connection = await sqldb.getConnection();
     await connection.beginTransaction();
 
     try {
