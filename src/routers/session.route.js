@@ -4,4 +4,4 @@ import { sessionController } from "../controller/session.controller";
 
 export const router = Router();
 
-router.get("", tokenValidation(), sessionController.get);
+router.get("/", tokenValidation(), sessionController.get);
