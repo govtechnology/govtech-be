@@ -5,6 +5,7 @@ import { router as userRouter } from "./routers/user.route.js";
 import { router as profileRouter } from "./routers/profile.route.js";
 import { router as authRouter } from "./routers/auth.route.js";
 import { router as certificateRouter } from "./routers/certificate.route.js";
+import { router as sessionRouter } from "./routers/session.route.js";
 
 const port = process.env.PORT || 8080;
 const baseApi = process.env.BASE_API_URL || "/";
@@ -28,6 +29,7 @@ app.use(`${baseApi}/user`, userRouter);
 app.use(`${baseApi}/profile`, profileRouter);
 app.use(`${baseApi}/auth`, authRouter);
 app.use(`${baseApi}/certificate`, certificateRouter);
+app.use(`${baseApi}/sessions`, sessionRouter);
 
 app.listen(port, () => {
   console.log(`Listening on port ${port}...`);

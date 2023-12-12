@@ -21,6 +21,28 @@ class Session {
         return this;
     }
 
+    async get(page, size) {
+        const limit = size;
+        const offset = (page * size) - size;
+
+        const data = await this.connection.query(
+            "SELECT s.id, s.comment, s.source, TIMESTAMPDIFF(SECOND, s.createdAt, s.revokedAt) AS duration, 'SECOND' as durationType, CASE WHEN s.revokedAt IS NOT NULL THEN 'true' ELSE 'false' END AS isLoggedOut, s.revokedAt AS loggedOutAt, s.createdAt AS loggedInAt FROM sessions AS s WHERE s.userId = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?",
+            [this.userId, limit, offset]
+        )
+        
+        const total = await this.connection.query(
+            "SELECT COUNT(*) AS total FROM sessions AS s WHERE s.userId = ?",
+            [this.userId]
+        )
+
+        this.connection.release();
+
+        return {
+            data: data[0],
+            total: total[0][0].total
+        };
+    }
+
     async revoke() {
         await this.connection.execute(
             "UPDATE sessions SET revokedAt = NOW() WHERE userId = ? AND revokedAt IS NUll",
