@@ -5,6 +5,7 @@ import * as OTPAuth from "otpauth";
 import { generateRandomBase32 } from "../lib/base32.js";
 import { sqldb } from "../lib/dbConnector.js";
 import { randomUUID as uuid } from "crypto";
+import Session from "../models/session.js";
 
 export * as authController from "../controller/auth.controller";
 
@@ -89,6 +90,12 @@ export const signIn = async (req, res, next) => {
         [user.id, uuid(), md5Refresh]
       );
 
+      await new Session(user.id, Session.CONVENTIONAL).build()
+      .then((session) => session.start())
+      .then((session) => session.revoke())
+      .then((session) => session.persist())
+      .then((session) => session.finish());
+
       res.json({
         status: 200,
         userId: user.id,
@@ -101,6 +108,30 @@ export const signIn = async (req, res, next) => {
         },
       });
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const signOut = async (req, res, next) => {
+  try {
+    if (
+      !req.headers.authorization ||
+      !req.headers.authorization.startsWith("Bearer ")
+    ) {
+      return res.status(401).json({
+        status: 401,
+        message: "Unauthorized: Bearer token required",
+      });
+    }
+
+    const data = verifyToken(req.headers.authorization.substring("Bearer ".length));
+    Session.revoke(data.id);
+
+    res.json({
+      status: 200,
+      message: "User has been logged out"
+    });
   } catch (error) {
     next(error);
   }
@@ -319,6 +350,12 @@ export const ValidateOTP = async (req, res) => {
 
       await connection.commit();
       connection.release();
+
+      await new Session(user.id, Session.IBM_MFA).build()
+      .then((session) => session.start())
+      .then((session) => session.revoke())
+      .then((session) => session.persist())
+      .then((session) => session.finish());
 
       res.status(200).json({
         otp_valid: true,
