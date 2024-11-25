@@ -234,7 +234,7 @@ export default async function docsGenerate(data) {
   }
 
   fs.writeFileSync(tempPath, await generatedDocument);
-  await uploadMinioStorage("govtech-bucket", remotePath, tempPath);
+  await uploadMinioStorage("ngubalan", remotePath, tempPath);
 
   await prisma.certificate.update({
     where: { id: data.skId },

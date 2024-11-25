@@ -5,7 +5,8 @@ const unlinkAsync = promisify(fs.unlink);
 
 export var minioClient = new Minio.Client({
   endPoint: process.env.S3_HOST_URL,
-  useSSL: true,
+  port: process.env.S3_HOST_PORT,
+  useSSL: false,
   accessKey: process.env.S3_ACCESS_KEY,
   secretKey: process.env.S3_SECRET_KEY,
 });
@@ -32,7 +33,7 @@ export const uploadMinioStorage = async (bucketName, remotePath, tempPath) => {
 
 export const generateMinioStorageLink = async (remotePath) => {
   const getLink = await minioClient.presignedGetObject(
-    "govtech-bucket",
+    "ngubalan",
     remotePath,
     1000
   );

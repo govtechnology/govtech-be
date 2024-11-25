@@ -7,7 +7,7 @@ import { router as authRouter } from "./routers/auth.route.js";
 import { router as certificateRouter } from "./routers/certificate.route.js";
 
 const port = process.env.PORT || 8080;
-const baseApi = process.env.BASE_API_URL || "/";
+const baseApi = process.env.BASE_API_URL || "";
 const app = express();
 const corsOptions = {
   origin: "*",
